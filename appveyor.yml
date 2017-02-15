@@ -74,3 +74,10 @@ install:
 build: false
 test_script:
   - cargo test --verbose %cargoflags%
+
+## Notifications ##
+notifications:
+    - provider: Slack
+      incoming_webhook:
+          secure: 'MP8WFtIx5rBhfVYfwa2Wdj3jmyTDe9XDQWRl9Ef9BZaYmi1XEQBvT6NEW3IgbTSH1yUsL8mcbVlEzgSImkuk4qN32HGpyjU56FbWwC7Tttc'
+      channel: '#crucible'
