@@ -1,0 +1,14 @@
+[package]
+name = "sentry-rs"
+version = "1.0.0"
+authors = ["Eric Coan <ecoan@instructure.com>"]
+
+[dependencies]
+backtrace = "0.2"
+chrono = "0.2"
+log = "0.3"
+hyper = "0.10"
+hyper-native-tls = "0.2"
+serde = "0.9"
+serde_derive = "0.9"
+serde_json = "0.9"
