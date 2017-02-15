@@ -1,5 +1,13 @@
 # Sentry-Client #
 
+| OS      | Build Status                                                                                                                                                          |
+|:--------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Linux   | [![Linux Build Status](https://circleci.com/gh/SecurityInsanity/sentry-rs/tree/master.svg?style=svg)](https://circleci.com/gh/SecurityInsanity/sentry-rs/tree/master) |
+| Windows | [![Windows Build status](https://ci.appveyor.com/api/projects/status/yvlgnytb2tir8y4q?svg=true)](https://ci.appveyor.com/project/SecurityInsanity/sentry-rs)          |
+
+
+
+
 Sentry Client is a fork of: [THIS](https://github.com/aagahi/rust-sentry) sentry client,
 but contains numerous fixes as well as some code/dependency cleanup.
 
