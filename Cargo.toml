@@ -2,6 +2,10 @@
 name = "sentry-rs"
 version = "1.0.0"
 authors = ["Eric Coan <ecoan@instructure.com>"]
+description = "A Sentry Client for Rust Lang."
+license = "MIT"
+homepage = "https://github.com/SecurityInsanity/sentry-rs"
+repository = "https://github.com/SecurityInsanity/sentry-rs"
 
 [dependencies]
 backtrace = "0.2"
