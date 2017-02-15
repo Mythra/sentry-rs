@@ -1,5 +1,5 @@
-extern crate sentry_client;
-use sentry_client::*;
+extern crate sentry_rs;
+use sentry_rs::*;
 use std::collections::BTreeMap;
 
 pub fn generate_shallow_event() -> Event {
