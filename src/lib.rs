@@ -18,7 +18,10 @@ use hyper_native_tls::NativeTlsClient;
 use std::collections::BTreeMap;
 use std::env;
 use std::fmt::Debug;
+use std::fs::File;
 use std::io::Read;
+use std::io::BufReader;
+use std::io::BufRead;
 use std::sync::mpsc::{ channel, Receiver, Sender, SendError };
 use std::sync::{ Arc, Mutex};
 use std::sync::atomic::{ AtomicBool, Ordering };
@@ -134,6 +137,12 @@ pub struct StackFrame {
   pub function: String,
   /// The line number this stackframe originated from.
   pub lineno: u32,
+  /// The lines that come before it for context.
+  pub pre_context: Vec<String>,
+  /// The lines that come after the error line for context.
+  pub post_context: Vec<String>,
+  /// The line that through the error for context.
+  pub context_line: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -268,14 +277,30 @@ impl Event {
       let max_iter = stacktrace.len() - 1;
       for (index, item) in stacktrace.iter().enumerate() {
         base_str.push_str("{");
-        // A Filename comes prequoted, unless it's nothing. i really have no idea why.
+        // A Filename comes sometimes prequoted, unless it's nothing. i really have no idea why.
         if item.filename != "" {
-          base_str.push_str(&format!("\"filename\": {},", item.filename));
+          let mut true_filename = item.filename.clone();
+          let tf_len = true_filename.len();
+          if true_filename.starts_with("\"") {
+            true_filename.remove(0);
+            true_filename.truncate(tf_len - 1);
+          }
+          base_str.push_str(&format!("\"filename\": \"{}\",", true_filename.replace("\"", "")));
         } else {
           base_str.push_str(&format!("\"filename\": \"\","));
         }
+        base_str.push_str(&format!("\"in_app\": true,"));
         base_str.push_str(&format!("\"function\": \"{}\",", item.function));
-        base_str.push_str(&format!("\"lineno\": {}", item.lineno));
+        base_str.push_str(&format!("\"lineno\": {},", item.lineno));
+        base_str.push_str(&format!("\"pre_context\": {:?},", item.pre_context));
+        base_str.push_str(&format!("\"post_context\": {:?},", item.post_context));
+        let mut true_context_line = item.context_line.clone();
+        let tc_len = true_context_line.len();
+        if true_context_line.starts_with("\"") {
+          true_context_line.remove(0);
+          true_context_line.truncate(tc_len - 1);
+        }
+        base_str.push_str(&format!("\"context_line\": \"{}\"", true_context_line.replace("\"", "")));
         base_str.push_str("}");
         if index != max_iter {
           base_str.push_str(",");
@@ -460,10 +485,47 @@ impl Sentry {
           let name = symbol.name().map_or("unresolved symbol".to_string(), |name| name.to_string());
           let filename = symbol.filename().map_or("".to_string(), |sym| format!("{:?}", sym));
           let lineno = symbol.lineno().unwrap_or(0);
+
+          let f = File::open(&filename.replace("\"", ""));
+          let mut pre_context = Vec::new();
+          let mut context_line = String::new();
+          let mut post_context = Vec::new();
+
+          if f.is_ok() {
+            let file = f.unwrap();
+            let buffed_reader = BufReader::new(&file);
+            let items = buffed_reader.lines().skip((lineno - 3) as usize).take(5);
+
+            let mut i = 0;
+            for item in items {
+              if item.is_ok() {
+                let true_item = item.unwrap();
+                match i {
+                  0|1 => {
+                    pre_context.push(true_item);
+                  },
+                  2 => {
+                    context_line = true_item;
+                  },
+                  3|4 => {
+                    post_context.push(true_item);
+                  },
+                  _ => continue
+                }
+              }
+              i += 1;
+            }
+          } else {
+            drop(f);
+          }
+
           frames.push(StackFrame {
             filename: filename,
             function: name,
             lineno: lineno,
+            pre_context: pre_context,
+            post_context: post_context,
+            context_line: context_line
           });
         });
 

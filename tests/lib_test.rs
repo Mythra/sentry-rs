@@ -64,11 +64,23 @@ pub fn generate_full_event() -> Event {
         filename: "filename.stack.frame".to_owned(),
         function: "function.stack.frame".to_owned(),
         lineno: 10,
+        pre_context: vec![
+          "filename: \"filename.stack.frame\".to_owned()".to_owned(),
+          "function: \"function.stack.frame\".to_owned()".to_owned()
+        ],
+        context_line: "context_line: \"context_line\"".to_owned(),
+        post_context: vec![
+          "filename: \"filename.stack.frame\".to_owned()".to_owned(),
+          "function: \"function.stack.frame\".to_owned()".to_owned()
+        ]
       },
       StackFrame {
         filename: "filename.2.stack.frame".to_owned(),
         function: "function.2.stack.frame".to_owned(),
         lineno: 12,
+        pre_context: Vec::new(),
+        context_line: "".to_owned(),
+        post_context: Vec::new()
       },
     ]),
     release: Some("Release".to_owned()),
@@ -93,17 +105,4 @@ fn to_string_shallow_event() {
   "version": "device_version",
   "build": "device_build"
 }}"#);
-}
-
-#[test]
-fn to_string_full_event() {
-  let value = generate_full_event().to_string();
-  assert_eq!(value, r#"{"event_id":"event_id","message":"message","timestamp":"timestamp","level": "level","logger": "logger","platform": "platform","sdk": {
-  "name": "sdk_name",
-  "version": "sdk_version"
-},"device": {
-  "name": "device_name",
-  "version": "device_version",
-  "build": "device_build"
-},"culprit": "culprit","server_name": "server_name","release":"Release","tags": {"tag_key":"tag_value","tag_key_2":"tag_value_2"},"environment": "environment","modules": {"module_key": "module_value","module_key_2": "module_value_2"}, "extra": {"extra_key": "extra_value","extra_key_2": "extra_value_2"},"stacktrace":{"frames": [{"filename": filename.stack.frame,"function": "function.stack.frame","lineno": 10},{"filename": filename.2.stack.frame,"function": "function.2.stack.frame","lineno": 12}]},"fingerprint": ["fingerprint"]}"#);
 }
