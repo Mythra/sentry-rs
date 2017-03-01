@@ -1,6 +1,6 @@
 [package]
 name = "sentry-rs"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Eric Coan <ecoan@instructure.com>"]
 description = "A Sentry Client for Rust Lang."
 license = "MIT"
