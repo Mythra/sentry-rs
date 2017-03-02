@@ -1,3 +1,7 @@
+## 1.4.0 (March 2nd, 2017)
+
+- Make programs not wait the full 5 second HTTP Timeout on panic.
+
 ## 1.3.0 (March 2nd, 2017)
 
 - Made Context Lines an optional feature that are enabled by default.

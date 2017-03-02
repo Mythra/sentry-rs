@@ -358,6 +358,7 @@ pub struct Sentry {
   pub release: String,
   pub environment: String,
   pub worker: Arc<SingleWorker<Event, SentryCredentials>>,
+  pub reciever: Arc<Mutex<Receiver<()>>>,
 }
 
 header! { (XSentryAuth, "X-Sentry-Auth") => [String] }
@@ -370,9 +371,12 @@ impl Sentry {
              credentials: SentryCredentials)
              -> Sentry {
 
+    let (the_sender, the_reciever) = channel::<()>();
+    let true_sender = Arc::new(Mutex::new(the_sender));
     let worker = SingleWorker::new(credentials,
                                    Box::new(move |credentials, e| {
                                      Sentry::post(credentials, &e);
+                                     let _ = true_sender.lock().unwrap().send(());
                                    }));
 
     Sentry {
@@ -380,6 +384,7 @@ impl Sentry {
       release: release,
       environment: environment,
       worker: Arc::new(worker),
+      reciever: Arc::new(Mutex::new(the_reciever)),
     }
   }
 
@@ -447,6 +452,8 @@ impl Sentry {
     let environment = self.environment.clone();
 
     let worker = self.worker.clone();
+
+    let the_rec = self.reciever.clone();
 
     std::panic::set_hook(Box::new(move |info: &std::panic::PanicInfo| {
       let location = info.location()
@@ -528,10 +535,22 @@ impl Sentry {
                              Some(frames),
                              Some(&release),
                              Some(&environment));
+      let recv = the_rec.lock();
+      if recv.is_err() {
+        std::thread::sleep(Duration::from_secs(5));
+        return;
+      }
+      let recv = recv.unwrap();
+      loop {
+        let result = recv.try_recv();
+        if result.is_err() {
+          break;
+        }
+      }
       let result = worker.work_with(event.clone());
       if result.is_ok() {
-        // Wait for timeout before bailing.
-        std::thread::sleep(Duration::from_secs(5));
+        // Wait for sentry before bailing.
+        let _ = recv.recv_timeout(Duration::from_secs(5));
       }
       if let Some(ref f) = maybe_f {
         f(info);
