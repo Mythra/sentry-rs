@@ -5,6 +5,7 @@ containerInfo:
   - image: jimmycuadra/rust:latest
 stages:
   build:
+    workDir: /source
     steps:
       - type: shell
         shell: /bin/bash
