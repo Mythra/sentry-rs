@@ -1,7 +1,14 @@
-machine:
-  services:
-    - docker
-
-test:
-  override:
-    - docker run -it --rm -v $(pwd):/source jimmycuadra/rust cargo test
+---
+version: 2
+executorType: docker
+containerInfo:
+  - image: jimmycuadra/rust:latest
+stages:
+  build:
+    steps:
+      - type: shell
+        shell: /bin/bash
+        command: cargo build
+      - type: shell
+        shell: /bin/bash
+        command: cargo test
