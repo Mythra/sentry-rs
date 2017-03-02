@@ -9,6 +9,9 @@ stages:
     steps:
       - type: shell
         shell: /bin/bash
+        command: apt-get update
+      - type: shell
+        shell: /bin/bash
         command: apt-get install openssh-client -y
       - type: checkout
       - type: shell
