@@ -7,6 +7,9 @@ stages:
   build:
     workDir: /source
     steps:
+      - type: shell
+        shell: /bin/bash
+        command: sudo apt-get install ssh -y
       - type: checkout
       - type: shell
         shell: /bin/bash
