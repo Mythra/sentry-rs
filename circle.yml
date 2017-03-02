@@ -9,7 +9,7 @@ stages:
     steps:
       - type: shell
         shell: /bin/bash
-        command: sudo apt-get install ssh -y
+        command: apt-get install openssh-client -y
       - type: checkout
       - type: shell
         shell: /bin/bash
