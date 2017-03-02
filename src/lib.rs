@@ -8,6 +8,7 @@ extern crate log;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
 
 use chrono::offset::utc::UTC;
@@ -15,6 +16,7 @@ use hyper::Client;
 use hyper::header::{Headers, ContentType};
 use hyper::net::HttpsConnector;
 use hyper_native_tls::NativeTlsClient;
+use serde_json::value::Value;
 use std::collections::BTreeMap;
 use std::env;
 use std::fmt::Debug;
@@ -203,125 +205,79 @@ pub struct Event {
 }
 
 impl Event {
-  /// Turns an event into a string. Due it a special way this way, because renaming a value of a value
-  /// inside of serde isn't really friendly, and just feels weird if they made it possible. this method
-  /// is super ugly right now, but it works.
-  ///
-  /// _TODO: Refactor All this_.
+  /// Serializes an Event Node.
   pub fn to_string(&self) -> String {
-    let mut base_str = String::new();
-    base_str.push_str("{");
-    base_str.push_str(&format!("\"event_id\":\"{}\",", self.event_id));
-    base_str.push_str(&format!("\"message\":\"{}\",", self.message));
-    base_str.push_str(&format!("\"timestamp\":\"{}\",", self.timestamp));
-    base_str.push_str(&format!("\"level\": \"{}\",", self.level));
-    base_str.push_str(&format!("\"logger\": \"{}\",", self.logger));
-    base_str.push_str(&format!("\"platform\": \"{}\",", self.platform));
-    base_str.push_str(&format!("\"sdk\": {},",
-                               serde_json::to_string_pretty(&self.sdk).unwrap_or("".to_owned())));
-    base_str.push_str(&format!("\"device\": {}",
-                               serde_json::to_string_pretty(&self.device)
-                                 .unwrap_or("".to_owned())));
-
+    let mut value: Value = json!({
+      "event_id": self.event_id,
+      "message": self.message,
+      "timestamp": self.timestamp,
+      "level": self.level,
+      "logger": self.logger,
+      "platform": self.platform,
+      "sdk": json!(self.sdk),
+      "device": json!(self.device)
+    });
     if let Some(ref culprit) = self.culprit {
-      base_str.push_str(&format!(",\"culprit\": \"{}\"", culprit));
+      value["culprit"] = json!(culprit);
     }
     if let Some(ref server_name) = self.server_name {
-      base_str.push_str(&format!(",\"server_name\": \"{}\"", server_name));
+      value["server_name"] = json!(server_name);
     }
     if let Some(ref release) = self.release {
-      base_str.push_str(&format!(",\"release\":\"{}\"", release));
+      value["release"] = json!(release);
     }
     let tag_length = self.tags.len();
     if tag_length > 0 {
-      let last_index = tag_length - 1;
-      base_str.push_str(",\"tags\": {");
-      for (index, item) in self.tags.iter().enumerate() {
-        base_str.push_str(&format!("\"{}\":\"{}\"", item.0, item.1));
-        if index != last_index {
-          base_str.push_str(",");
-        }
-      }
-      base_str.push_str("}");
+      value["tags"] = json!(self.tags);
     }
     if let Some(ref environment) = self.environment {
-      base_str.push_str(&format!(",\"environment\": \"{}\"", environment));
+      value["environment"] = json!(environment);
     }
     let modules_len = self.modules.len();
     if modules_len > 0 {
-      base_str.push_str(",\"modules\": {");
-      let last_iter = modules_len - 1;
-      for (index, item) in self.modules.iter().enumerate() {
-        base_str.push_str(&format!("\"{}\": \"{}\"", item.0, item.1));
-        if index != last_iter {
-          base_str.push_str(",");
-        }
-      }
-      base_str.push_str("}");
+      value["modules"] = json!(self.modules);
     }
     let extra_len = self.extra.len();
     if extra_len > 0 {
-      base_str.push_str(", \"extra\": {");
-      let last_iter = extra_len - 1;
-      for (index, item) in self.extra.iter().enumerate() {
-        base_str.push_str(&format!("\"{}\": \"{}\"", item.0, item.1));
-        if index != last_iter {
-          base_str.push_str(",");
-        }
-      }
-      base_str.push_str("}");
+      value["extra"] = json!(self.extra);
     }
     if let Some(ref stacktrace) = self.stacktrace {
-      base_str.push_str(",\"stacktrace\":{\"frames\": [");
-      let max_iter = stacktrace.len() - 1;
-      for (index, item) in stacktrace.iter().enumerate() {
-        base_str.push_str("{");
-        // A Filename comes sometimes prequoted, unless it's nothing. i really have no idea why.
-        if item.filename != "" {
+      let frames = stacktrace.iter()
+        .map(|item| {
           let mut true_filename = item.filename.clone();
-          let tf_len = true_filename.len();
-          if true_filename.starts_with("\"") {
-            true_filename.remove(0);
-            true_filename.truncate(tf_len - 1);
+          if item.filename != "" {
+            if item.filename.starts_with("\"") {
+              let tf_len = true_filename.len();
+              true_filename.remove(0);
+              true_filename.truncate(tf_len - 1);
+            }
           }
-          base_str.push_str(&format!("\"filename\": \"{}\",", true_filename.replace("\"", "")));
-        } else {
-          base_str.push_str(&format!("\"filename\": \"\","));
-        }
-        base_str.push_str(&format!("\"in_app\": true,"));
-        base_str.push_str(&format!("\"function\": \"{}\",", item.function));
-        base_str.push_str(&format!("\"lineno\": {},", item.lineno));
-        base_str.push_str(&format!("\"pre_context\": {:?},", item.pre_context));
-        base_str.push_str(&format!("\"post_context\": {:?},", item.post_context));
-        let mut true_context_line = item.context_line.clone();
-        let tc_len = true_context_line.len();
-        if true_context_line.starts_with("\"") {
-          true_context_line.remove(0);
-          true_context_line.truncate(tc_len - 1);
-        }
-        base_str.push_str(&format!("\"context_line\": \"{}\"",
-                                   true_context_line.replace("\"", "")));
-        base_str.push_str("}");
-        if index != max_iter {
-          base_str.push_str(",");
-        }
-      }
-      base_str.push_str("]}");
+          let mut true_context_line = item.context_line.clone();
+          let tc_len = true_context_line.len();
+          if true_context_line.starts_with("\"") {
+            true_context_line.remove(0);
+            true_context_line.truncate(tc_len - 1);
+          }
+          json!(StackFrame {
+          filename: true_filename,
+          function: item.function.clone(),
+          lineno: item.lineno,
+          pre_context: item.pre_context.clone(),
+          post_context: item.post_context.clone(),
+          context_line: true_context_line
+        })
+        })
+        .collect::<Vec<Value>>();
+      value["stacktrace"] = json!({
+        "frames": json!(frames),
+      });
     }
     let fingerprint_len = self.fingerprint.len();
     if fingerprint_len > 0 {
-      base_str.push_str(",\"fingerprint\": [");
-      let max_iter = fingerprint_len - 1;
-      for (index, item) in self.fingerprint.iter().enumerate() {
-        base_str.push_str(&format!("\"{}\"", item));
-        if index != max_iter {
-          base_str.push_str(",");
-        }
-      }
-      base_str.push_str("]");
+      value["fingerprint"] = json!(self.fingerprint);
     }
-    base_str.push_str("}");
-    base_str
+
+    serde_json::to_string(&value).unwrap()
   }
 }
 
@@ -414,9 +370,10 @@ impl Sentry {
              credentials: SentryCredentials)
              -> Sentry {
 
-    let worker =
-      SingleWorker::new(credentials,
-                        Box::new(move |credentials, e| { Sentry::post(credentials, &e); }));
+    let worker = SingleWorker::new(credentials,
+                                   Box::new(move |credentials, e| {
+                                     Sentry::post(credentials, &e);
+                                   }));
 
     Sentry {
       server_name: server_name,
@@ -514,37 +471,39 @@ impl Sentry {
             .map_or("".to_string(), |sym| format!("{:?}", sym));
           let lineno = symbol.lineno().unwrap_or(0);
 
-          let f = File::open(&filename.replace("\"", ""));
           let mut pre_context = Vec::new();
           let mut context_line = String::new();
           let mut post_context = Vec::new();
 
-          if f.is_ok() {
-            let file = f.unwrap();
-            let buffed_reader = BufReader::new(&file);
-            let items = buffed_reader.lines().skip((lineno - 3) as usize).take(5);
+          if cfg!(feature = "sourcemap") {
+            let f = File::open(&filename.replace("\"", ""));
+            if f.is_ok() {
+              let file = f.unwrap();
+              let buffed_reader = BufReader::new(&file);
+              let items = buffed_reader.lines().skip((lineno - 5) as usize).take(11);
 
-            let mut i = 0;
-            for item in items {
-              if item.is_ok() {
-                let true_item = item.unwrap();
-                match i {
-                  0 | 1 => {
-                    pre_context.push(true_item);
+              let mut i = 0;
+              for item in items {
+                if item.is_ok() {
+                  let true_item = item.unwrap();
+                  match i {
+                    0 | 1 | 2 | 3 | 4 => {
+                      pre_context.push(true_item);
+                    }
+                    5 => {
+                      context_line = true_item;
+                    }
+                    6 | 7 | 8 | 9 | 10 => {
+                      post_context.push(true_item);
+                    }
+                    _ => continue,
                   }
-                  2 => {
-                    context_line = true_item;
-                  }
-                  3 | 4 => {
-                    post_context.push(true_item);
-                  }
-                  _ => continue,
                 }
+                i += 1;
               }
-              i += 1;
+            } else {
+              drop(f);
             }
-          } else {
-            drop(f);
           }
 
           frames.push(StackFrame {

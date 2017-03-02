@@ -17,7 +17,7 @@ Add the following to your rusts `Cargo.toml`:
 
 ```toml
 [dependencies]
-sentry-rs = "1.2"
+sentry-rs = "1.3"
 ```
 
 And then this in your crate root:
