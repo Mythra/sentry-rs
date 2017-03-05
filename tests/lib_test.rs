@@ -1,4 +1,5 @@
 extern crate sentry_rs;
+
 use sentry_rs::*;
 use std::collections::BTreeMap;
 
@@ -95,13 +96,13 @@ pub fn generate_full_event() -> Event {
 }
 
 #[test]
-fn to_string_shallow_event() {
+pub fn to_string_shallow_event() {
   let value = generate_shallow_event().to_string();
   assert_eq!(value, r#"{"device":{"build":"device_build","name":"device_name","version":"device_version"},"event_id":"event_id","level":"level","logger":"logger","message":"message","platform":"platform","sdk":{"name":"sdk_name","version":"sdk_version"},"timestamp":"timestamp"}"#);
 }
 
 #[test]
-fn to_string_full_event() {
+pub fn to_string_full_event() {
   let value = generate_full_event().to_string();
   assert_eq!(value, r#"{"culprit":"culprit","device":{"build":"device_build","name":"device_name","version":"device_version"},"environment":"environment","event_id":"event_id","extra":{"extra_key":"extra_value","extra_key_2":"extra_value_2"},"fingerprint":["fingerprint"],"level":"level","logger":"logger","message":"message","modules":{"module_key":"module_value","module_key_2":"module_value_2"},"platform":"platform","release":"Release","sdk":{"name":"sdk_name","version":"sdk_version"},"server_name":"server_name","stacktrace":{"frames":[{"context_line":"context_line: \"context_line\"","filename":"filename.stack.frame","function":"function.stack.frame","lineno":10,"post_context":["filename: \"filename.stack.frame\".to_owned()","function: \"function.stack.frame\".to_owned()"],"pre_context":["filename: \"filename.stack.frame\".to_owned()","function: \"function.stack.frame\".to_owned()"]},{"context_line":"","filename":"filename.2.stack.frame","function":"function.2.stack.frame","lineno":12,"post_context":[],"pre_context":[]}]},"tags":{"tag_key":"tag_value","tag_key_2":"tag_value_2"},"timestamp":"timestamp"}"#);
 }
