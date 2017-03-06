@@ -1,6 +1,6 @@
 extern crate sentry_rs;
 
-use sentry_rs::SentryCredentials;
+use sentry_rs::models::SentryCredentials;
 use sentry_rs::Sentry;
 use std::env;
 
