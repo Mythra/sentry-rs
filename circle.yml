@@ -19,4 +19,13 @@ stages:
         command: cargo build
       - type: shell
         shell: /bin/bash
-        command: cargo test
+        command: cargo test --verbose
+      - type: shell
+        shell: /bin/bash
+        command: cargo run --example cross-threads
+      - type: shell
+        shell: /bin/bash
+        command: cargo run --example logger-demo
+      - type: shell
+        shell: /bin/bash
+        command: cargo run --example panic-handler-demo

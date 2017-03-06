@@ -1,3 +1,8 @@
+## 1.4.1 (March 6th, 2017)
+
+- Clean up internal structure to be more "modular".
+- Add in more tests, and documentation.
+
 ## 1.4.0 (March 2nd, 2017)
 
 - Make programs not wait the full 5 second HTTP Timeout on panic.

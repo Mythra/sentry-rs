@@ -11,28 +11,28 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
+pub mod models;
+pub mod workers;
+
 use chrono::offset::utc::UTC;
 use hyper::Client;
 use hyper::header::{Headers, ContentType};
 use hyper::net::HttpsConnector;
 use hyper_native_tls::NativeTlsClient;
-use serde_json::value::Value;
-use std::collections::BTreeMap;
-use std::env;
-use std::fmt::Debug;
+use models::*;
 use std::fs::File;
 use std::io::Read;
 use std::io::BufReader;
 use std::io::BufRead;
-use std::sync::mpsc::{channel, Receiver, Sender, SendError};
+use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use std::thread;
+use workers::single::SingleWorker;
 
 /// The Thread State of the listening Worker that sends items off to sentry.
 /// Contains a single atomic boolean for knowing whether or not it's alive cross threads.
-struct ThreadState<'a> {
+pub struct ThreadState<'a> {
   alive: &'a mut Arc<AtomicBool>,
 }
 impl<'a> ThreadState<'a> {
@@ -48,310 +48,6 @@ impl<'a> Drop for ThreadState<'a> {
   }
 }
 
-/// Implement the worker closure as a trait, incase I ever want to have more than a single worker.
-pub trait WorkerClosure<T, P>: Fn(&P, T) -> () + Send + Sync {}
-impl<T, F, P> WorkerClosure<T, P> for F where F: Fn(&P, T) -> () + Send + Sync {}
-
-/// A Single Worker thread that sends items to Sentry.
-pub struct SingleWorker<T: 'static + Send, P: Clone + Send> {
-  parameters: P,
-  f: Arc<Box<WorkerClosure<T, P, Output = ()>>>,
-  receiver: Arc<Mutex<Receiver<T>>>,
-  sender: Mutex<Sender<T>>,
-  alive: Arc<AtomicBool>,
-}
-
-impl<T: 'static + Debug + Send, P: 'static + Clone + Send> SingleWorker<T, P> {
-  /// Creates a new Worker Thread. This realaly should only be used internally, and you
-  /// probably shouldn't just go around creating worker threads.
-  pub fn new(parameters: P, f: Box<WorkerClosure<T, P, Output = ()>>) -> SingleWorker<T, P> {
-    let (sender, reciever) = channel::<T>();
-
-    let worker = SingleWorker {
-      parameters: parameters,
-      f: Arc::new(f),
-      receiver: Arc::new(Mutex::new(reciever)),
-      sender: Mutex::new(sender),
-      alive: Arc::new(AtomicBool::new(true)),
-    };
-    SingleWorker::spawn_thread(&worker);
-    worker
-  }
-
-  /// Internal Method to handle some of the logic of reading from an a AtomicBoolean.
-  fn is_alive(&self) -> bool {
-    self.alive.clone().load(Ordering::Relaxed)
-  }
-
-  /// Spawns the thread for when the worker isn't already working (alive).
-  fn spawn_thread(worker: &SingleWorker<T, P>) {
-    let mut alive = worker.alive.clone();
-    let f = worker.f.clone();
-    let receiver = worker.receiver.clone();
-    let parameters = worker.parameters.clone();
-    thread::spawn(move || {
-      let state = ThreadState { alive: &mut alive };
-      state.set_alive();
-
-      let lock = match receiver.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-      };
-
-      loop {
-        match lock.recv() {
-          Ok(value) => f(&parameters, value),
-          Err(_) => {
-            thread::yield_now();
-          }
-        };
-      }
-    });
-    while !worker.is_alive() {
-      thread::yield_now();
-    }
-  }
-
-  /// Processes an Event that needs to go to Sentry.
-  pub fn work_with(&self, msg: T) -> Result<(), SendError<T>> {
-    let alive = self.is_alive();
-    if !alive {
-      SingleWorker::spawn_thread(self);
-    }
-
-    let lock = match self.sender.lock() {
-      Ok(guard) => guard,
-      Err(poisoned) => poisoned.into_inner(),
-    };
-
-    lock.send(msg)
-  }
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// A Stackframe to Send to Sentry.
-pub struct StackFrame {
-  /// The Filename that this StackFrame originated from.
-  pub filename: String,
-  /// The function this stackframe originated from.
-  pub function: String,
-  /// The line number this stackframe originated from.
-  pub lineno: u32,
-  /// The lines that come before it for context.
-  pub pre_context: Vec<String>,
-  /// The lines that come after the error line for context.
-  pub post_context: Vec<String>,
-  /// The line that through the error for context.
-  pub context_line: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// The SDK Representation for Sentry.
-pub struct SDK {
-  /// The name of the SDK sending the Event.
-  pub name: String,
-  /// The version of the SDK sending the Event.
-  pub version: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// Information about the device for Sentry.
-pub struct Device {
-  /// The name of the device.
-  pub name: String,
-  /// The version of the device.
-  pub version: String,
-  /// The build of the device.
-  pub build: String,
-}
-
-#[derive(Clone, Debug)]
-/// A Sentry Event.
-pub struct Event {
-  /// The event id of this event.
-  pub event_id: String,
-  /// The message of this event.
-  pub message: String,
-  /// The timestamp of this event.
-  pub timestamp: String,
-  /// The level of warning for this event.
-  pub level: String,
-  /// The logger for this event.
-  pub logger: String,
-  /// The platform for this event.
-  pub platform: String,
-  /// The SDK of this event.
-  pub sdk: SDK,
-  /// The Device of this event.
-  pub device: Device,
-  /// The culprit of this event.
-  pub culprit: Option<String>,
-  /// The server name for this event.
-  pub server_name: Option<String>,
-  /// The stacktrace of this event.
-  pub stacktrace: Option<Vec<StackFrame>>,
-  /// The release of this event.
-  pub release: Option<String>,
-  /// The tags of this event.
-  pub tags: BTreeMap<String, String>,
-  /// The environment this event occured in.
-  pub environment: Option<String>,
-  /// The modules of this event.
-  pub modules: BTreeMap<String, String>,
-  /// The extra info for this event.
-  pub extra: BTreeMap<String, String>,
-  /// The fingerprints of this event.
-  pub fingerprint: Vec<String>,
-}
-
-impl Event {
-  /// Serializes an Event Node.
-  pub fn to_string(&self) -> String {
-    let mut value: Value = json!({
-      "event_id": self.event_id,
-      "message": self.message,
-      "timestamp": self.timestamp,
-      "level": self.level,
-      "logger": self.logger,
-      "platform": self.platform,
-      "sdk": json!(self.sdk),
-      "device": json!(self.device)
-    });
-    if let Some(ref culprit) = self.culprit {
-      value["culprit"] = json!(culprit);
-    }
-    if let Some(ref server_name) = self.server_name {
-      value["server_name"] = json!(server_name);
-    }
-    if let Some(ref release) = self.release {
-      value["release"] = json!(release);
-    }
-    let tag_length = self.tags.len();
-    if tag_length > 0 {
-      value["tags"] = json!(self.tags);
-    }
-    if let Some(ref environment) = self.environment {
-      value["environment"] = json!(environment);
-    }
-    let modules_len = self.modules.len();
-    if modules_len > 0 {
-      value["modules"] = json!(self.modules);
-    }
-    let extra_len = self.extra.len();
-    if extra_len > 0 {
-      value["extra"] = json!(self.extra);
-    }
-    if let Some(ref stacktrace) = self.stacktrace {
-      let frames = stacktrace.iter()
-        .map(|item| {
-          let mut true_filename = item.filename.clone();
-          if item.filename != "" {
-            if item.filename.starts_with("\"") {
-              let tf_len = true_filename.len();
-              true_filename.remove(0);
-              true_filename.truncate(tf_len - 1);
-            }
-          }
-          let mut true_context_line = item.context_line.clone();
-          let tc_len = true_context_line.len();
-          if true_context_line.starts_with("\"") {
-            true_context_line.remove(0);
-            true_context_line.truncate(tc_len - 1);
-          }
-          json!(StackFrame {
-          filename: true_filename,
-          function: item.function.clone(),
-          lineno: item.lineno,
-          pre_context: item.pre_context.clone(),
-          post_context: item.post_context.clone(),
-          context_line: true_context_line
-        })
-        })
-        .collect::<Vec<Value>>();
-      value["stacktrace"] = json!({
-        "frames": json!(frames),
-      });
-    }
-    let fingerprint_len = self.fingerprint.len();
-    if fingerprint_len > 0 {
-      value["fingerprint"] = json!(self.fingerprint);
-    }
-
-    serde_json::to_string(&value).unwrap()
-  }
-}
-
-impl Event {
-  /// A Wrapper around creating a brand new event. May be a little bit of a perf hinderance,
-  /// if You have `Strings`, since this method asks for `&str` (and then turns them into Strings).
-  /// But if you want to use static strings, or need to pass in one this can be :totes: helpful.
-  pub fn new(logger: &str,
-             level: &str,
-             message: &str,
-             culprit: Option<&str>,
-             fingerprint: Option<Vec<String>>,
-             server_name: Option<&str>,
-             stacktrace: Option<Vec<StackFrame>>,
-             release: Option<&str>,
-             environment: Option<&str>)
-             -> Event {
-
-    Event {
-      event_id: "".to_owned(),
-      message: message.to_owned(),
-      timestamp: UTC::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
-      level: level.to_owned(),
-      logger: logger.to_owned(),
-      platform: "other".to_string(),
-      sdk: SDK {
-        name: "rust-sentry".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-      },
-      device: Device {
-        name: env::var_os("OSTYPE")
-          .and_then(|cs| cs.into_string().ok())
-          .unwrap_or("".to_string()),
-        version: "".to_string(),
-        build: "".to_string(),
-      },
-      culprit: culprit.map(|c| c.to_owned()),
-      server_name: server_name.map(|c| c.to_owned()),
-      stacktrace: stacktrace,
-      release: release.map(|c| c.to_owned()),
-      tags: BTreeMap::new(),
-      environment: environment.map(|c| c.to_owned()),
-      modules: BTreeMap::new(),
-      extra: BTreeMap::new(),
-      fingerprint: fingerprint.unwrap_or(vec![]),
-    }
-  }
-
-  /// Adds a tag to this event.
-  pub fn add_tag(&mut self, key: String, value: String) {
-    self.tags.insert(key, value);
-  }
-}
-
-#[derive(Clone, Debug)]
-/// Some Sentry Credentials. Which although not immediatly obvious are super easy to get.
-/// Firsrt things first, go fetch your Client Keys (DSN) like you normally would for a project.
-/// Should look something like:
-///
-/// ```text
-/// https://XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY@ZZZZ/AAA
-/// ```
-///
-/// The "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" value is your "key".
-/// The "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY" value is your "secret".
-/// The "ZZZZ" value is your "host".
-/// The "AAA" value is your "project_id".
-pub struct SentryCredentials {
-  pub key: String,
-  pub secret: String,
-  pub host: Option<String>,
-  pub project_id: String,
-}
-
 /// A Sentry Object, instiates the worker, and actually is what you send your sentry events too.
 pub struct Sentry {
   pub server_name: String,
@@ -361,7 +57,10 @@ pub struct Sentry {
   pub reciever: Arc<Mutex<Receiver<()>>>,
 }
 
-header! { (XSentryAuth, "X-Sentry-Auth") => [String] }
+header! {
+  /// A Header representation of X-Sentry-Auth.
+  (XSentryAuth, "X-Sentry-Auth") => [String]
+}
 
 impl Sentry {
   /// Creates a new connection to Sentry.
@@ -395,7 +94,7 @@ impl Sentry {
     debug!("Created Headers!");
     let timestamp = UTC::now().timestamp().to_string();
     debug!("Got Timestamp for Sentry: [ {:?} ]", timestamp.clone());
-    let sentry_auth = format!("Sentry sentry_version=7,sentry_client=rust-sentry/{},\
+    let sentry_auth = format!("Sentry sentry_version=7,sentry_client=sentry-rs/{},\
                                sentry_timestamp={},sentry_key={},sentry_secret={}",
                               env!("CARGO_PKG_VERSION"),
                               timestamp,
@@ -416,7 +115,7 @@ impl Sentry {
     let url = format!("https://{}:{}@{}/api/{}/store/",
                       credentials.key,
                       credentials.secret,
-                      credentials.host.clone().unwrap_or("sentry.insops.net".to_owned()),
+                      credentials.host.clone().unwrap_or("sentry.io".to_owned()),
                       credentials.project_id);
 
     debug!("Posting body: {:?}", body.clone());
