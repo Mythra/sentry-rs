@@ -1,3 +1,9 @@
+## 1.5.0 (March 12th, 2017)
+
+- Added "in app" field to stacktraces to quickly get you to your apps errors.
+- Cleaned up some parts in json serialization.
+- Added to the panic-handler-demo example.
+
 ## 1.4.1 (March 6th, 2017)
 
 - Clean up internal structure to be more "modular".

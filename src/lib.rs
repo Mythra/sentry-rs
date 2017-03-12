@@ -180,9 +180,10 @@ impl Sentry {
           let mut pre_context = Vec::new();
           let mut context_line = String::new();
           let mut post_context = Vec::new();
+          let fixed_filename = filename.replace("\"", "");
 
           if cfg!(feature = "sourcemap") {
-            let f = File::open(&filename.replace("\"", ""));
+            let f = File::open(&fixed_filename);
             if f.is_ok() {
               let file = f.unwrap();
               let buffed_reader = BufReader::new(&file);
@@ -212,6 +213,8 @@ impl Sentry {
             }
           }
 
+          let in_app = !(fixed_filename.starts_with("/buildslave") || fixed_filename == "");
+
           frames.push(StackFrame {
             filename: filename,
             function: name,
@@ -219,6 +222,7 @@ impl Sentry {
             pre_context: pre_context,
             post_context: post_context,
             context_line: context_line,
+            in_app: in_app,
           });
         });
 
