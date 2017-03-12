@@ -187,7 +187,7 @@ impl Sentry {
             if f.is_ok() {
               let file = f.unwrap();
               let buffed_reader = BufReader::new(&file);
-              let items = buffed_reader.lines().skip((lineno - 5) as usize).take(11);
+              let items = buffed_reader.lines().skip((lineno - 6) as usize).take(11);
 
               let mut i = 0;
               for item in items {
