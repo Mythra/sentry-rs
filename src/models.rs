@@ -25,6 +25,9 @@ pub struct StackFrame {
   pub post_context: Vec<String>,
   /// The line that through the error for context.
   pub context_line: String,
+  /// Whether or not this error orginates "inside the app". E.g. not parts of rust itself.
+  /// For us we use this as anything not in /buildslave/ + main
+  pub in_app: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -132,17 +135,11 @@ impl Event {
       "logger": self.logger,
       "platform": self.platform,
       "sdk": json!(self.sdk),
-      "device": json!(self.device)
+      "device": json!(self.device),
+      "culprit": json!(self.culprit),
+      "server_name": json!(self.server_name),
+      "release": json!(self.release),
     });
-    if let Some(ref culprit) = self.culprit {
-      value["culprit"] = json!(culprit);
-    }
-    if let Some(ref server_name) = self.server_name {
-      value["server_name"] = json!(server_name);
-    }
-    if let Some(ref release) = self.release {
-      value["release"] = json!(release);
-    }
     let tag_length = self.tags.len();
     if tag_length > 0 {
       value["tags"] = json!(self.tags);
@@ -161,14 +158,7 @@ impl Event {
     if let Some(ref stacktrace) = self.stacktrace {
       let frames = stacktrace.iter()
         .map(|item| {
-          json!(StackFrame {
-          filename: prep_string(&item.filename),
-          function: item.function.clone(),
-          lineno: item.lineno,
-          pre_context: item.pre_context.clone(),
-          post_context: item.post_context.clone(),
-          context_line: prep_string(&item.context_line)
-        })
+          json!(item)
         })
         .collect::<Vec<Value>>();
       value["stacktrace"] = json!({

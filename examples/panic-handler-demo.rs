@@ -2,7 +2,7 @@ extern crate sentry_rs;
 
 use sentry_rs::models::SentryCredentials;
 use sentry_rs::Sentry;
-use std::env;
+use std::{ env, thread };
 
 fn main() {
   let credentials = SentryCredentials {
@@ -12,12 +12,16 @@ fn main() {
     project_id: env::var("SENTRY_PROJECT_ID").unwrap_or("XX".to_owned()),
   };
   let sentry = Sentry::new(
-    "Server Name".to_string(),
-    "Release of Your Project Consider using env!()".to_string(),
-    "Environment you're deployed in".to_string(),
+    "Test Boxen".to_string(),
+    "0.1.0".to_string(),
+    "Production".to_string(),
     credentials
   );
 
   sentry.register_panic_handler();
+  let t1 = thread::spawn(|| {
+    panic!("Panic Handler Testing");
+  });
+  let _ = t1.join();
   sentry.unregister_panic_handler();
 }
