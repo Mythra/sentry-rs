@@ -1,3 +1,7 @@
+## 1.5.1 (March 12th, 2017)
+
+- Fixed context line being one off.
+
 ## 1.5.0 (March 12th, 2017)
 
 - Added "in app" field to stacktraces to quickly get you to your apps errors.
