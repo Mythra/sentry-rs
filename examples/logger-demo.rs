@@ -18,6 +18,6 @@ fn main() {
     credentials
   );
 
-  // Logger Name, Message to Log, Potential Culprit (Option<&str>).
-  sentry.info("Logger Name", "Message To Log", None);
+  // Logger Name, Message to Log, Potential Culprit (Option<&str>), Device (Option<Device>).
+  sentry.info("Logger Name", "Message To Log", None, None);
 }

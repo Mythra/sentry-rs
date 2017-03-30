@@ -10,6 +10,7 @@ extern crate serde;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+extern crate url;
 
 pub mod models;
 pub mod workers;
@@ -237,7 +238,8 @@ impl Sentry {
                              Some(&server_name),
                              Some(frames),
                              Some(&release),
-                             Some(&environment));
+                             Some(&environment),
+                             None);
       let recv = the_rec.lock();
       if recv.is_err() {
         std::thread::sleep(Duration::from_secs(5));
@@ -269,28 +271,28 @@ impl Sentry {
   }
 
   /// Logs a fatal message to sentry.
-  pub fn fatal(&self, logger: &str, message: &str, culprit: Option<&str>) {
-    self.log(logger, "fatal", message, culprit, None);
+  pub fn fatal(&self, logger: &str, message: &str, culprit: Option<&str>, device: Option<Device>) {
+    self.log(logger, "fatal", message, culprit, None, device);
   }
 
   /// Logs an error message to sentry.
-  pub fn error(&self, logger: &str, message: &str, culprit: Option<&str>) {
-    self.log(logger, "error", message, culprit, None);
+  pub fn error(&self, logger: &str, message: &str, culprit: Option<&str>, device: Option<Device>) {
+    self.log(logger, "error", message, culprit, None, device);
   }
 
   /// Logs a warning message to sentry.
-  pub fn warning(&self, logger: &str, message: &str, culprit: Option<&str>) {
-    self.log(logger, "warning", message, culprit, None);
+  pub fn warning(&self, logger: &str, message: &str, culprit: Option<&str>, device: Option<Device>) {
+    self.log(logger, "warning", message, culprit, None, device);
   }
 
   /// Logs an info message to sentry.
-  pub fn info(&self, logger: &str, message: &str, culprit: Option<&str>) {
-    self.log(logger, "info", message, culprit, None);
+  pub fn info(&self, logger: &str, message: &str, culprit: Option<&str>, device: Option<Device>) {
+    self.log(logger, "info", message, culprit, None, device);
   }
 
   /// Logs a debug message to sentry.
-  pub fn debug(&self, logger: &str, message: &str, culprit: Option<&str>) {
-    self.log(logger, "debug", message, culprit, None);
+  pub fn debug(&self, logger: &str, message: &str, culprit: Option<&str>, device: Option<Device>) {
+    self.log(logger, "debug", message, culprit, None, device);
   }
 
   /// Handles a log call of any level.
@@ -299,7 +301,8 @@ impl Sentry {
          level: &str,
          message: &str,
          culprit: Option<&str>,
-         fingerprint: Option<Vec<String>>) {
+         fingerprint: Option<Vec<String>>,
+         device: Option<Device>) {
 
     let fpr = match fingerprint {
       Some(f) => f,
@@ -318,6 +321,7 @@ impl Sentry {
                                              Some(&self.server_name),
                                              None,
                                              Some(&self.release),
-                                             Some(&self.environment)));
+                                             Some(&self.environment),
+                                             device));
   }
 }

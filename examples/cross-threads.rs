@@ -24,10 +24,10 @@ fn main() {
   let other_sentry_two = sentry.clone();
 
   let thread_one = thread::spawn(move || {
-    other_sentry_one.info("thread.one", "Test Message", None);
+    other_sentry_one.info("thread.one", "Test Message", None, None);
   });
   let thread_two = thread::spawn(move || {
-    other_sentry_two.info("thread.two", "Message Test", None);
+    other_sentry_two.info("thread.two", "Message Test", None, None);
   });
 
   let _ = thread_one.join();
