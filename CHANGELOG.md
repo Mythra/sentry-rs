@@ -1,3 +1,9 @@
+## 2.0.0 (March 29th, 2017)
+
+- Allowed Specifying of Devices (Breaking Change). Still defaults to the same.
+- Allowed parsing of the sentry credentials from a raw dsn string.
+- Allowed you to compare equality of all models.
+
 ## 1.5.1 (March 12th, 2017)
 
 - Fixed context line being one off.

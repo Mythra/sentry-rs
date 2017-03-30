@@ -7,8 +7,10 @@ use chrono::offset::utc::UTC;
 use serde_json::{ to_string, Value };
 use std::collections::BTreeMap;
 use std::env;
+use std::str::FromStr;
+use url::Url;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 /// A Stackframe to Send to Sentry. Each attribute is described in detail [HERE].
 ///
 /// [HERE]: https://docs.sentry.io/clientdev/attributes/
@@ -30,7 +32,7 @@ pub struct StackFrame {
   pub in_app: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 /// The SDK Representation for Sentry. Each attribute is described in detail [HERE].
 ///
 /// [HERE]: https://docs.sentry.io/clientdev/attributes/
@@ -41,7 +43,7 @@ pub struct SDK {
   pub version: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 /// Information about the device for Sentry. Each attribute is described in detail [HERE].
 ///
 /// [HERE]: https://docs.sentry.io/clientdev/attributes/
@@ -54,7 +56,7 @@ pub struct Device {
   pub build: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 /// An Event that gets sent to Sentry. Each attribute is described in detail [HERE].
 ///
 /// [HERE]: https://docs.sentry.io/clientdev/attributes/
@@ -121,7 +123,7 @@ impl Event {
   /// use sentry_rs::models::Event;
   /// let event: Event = Event::new("my logger", "INFO", "a message", Some("jerk"),
   /// Some(vec!["fingerprint".to_owned()]), Some("server name"), Some(vec![]),
-  /// Some("release"), Some("production"));
+  /// Some("release"), Some("production"), None);
   ///
   /// let as_string: String = event.to_string();
   /// println!("{}", as_string);
@@ -183,14 +185,14 @@ impl Event {
   ///
   /// ```rust
   /// use sentry_rs::models::Event;
-  /// let event: Event = Event::new("my logger", "PANIC", "my message", None, None, None, None, None, None);
+  /// let event: Event = Event::new("my logger", "PANIC", "my message", None, None, None, None, None, None, None);
   /// ```
   ///
   /// ```rust
   /// use sentry_rs::models::Event;
   /// let event: Event = Event::new("my logger", "INFO", "a message", Some("jerk"),
   /// Some(vec!["fingerprint".to_owned()]), Some("server name"), Some(vec![]),
-  /// Some("release"), Some("production"));
+  /// Some("release"), Some("production"), None);
   /// ```
   pub fn new(logger: &str,
              level: &str,
@@ -200,7 +202,8 @@ impl Event {
              server_name: Option<&str>,
              stacktrace: Option<Vec<StackFrame>>,
              release: Option<&str>,
-             environment: Option<&str>)
+             environment: Option<&str>,
+             device: Option<Device>)
              -> Event {
 
     Event {
@@ -214,13 +217,15 @@ impl Event {
         name: "sentry-rs".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
       },
-      device: Device {
-        name: env::var_os("OSTYPE")
-          .and_then(|cs| cs.into_string().ok())
-          .unwrap_or("".to_string()),
-        version: "".to_string(),
-        build: "".to_string(),
-      },
+      device: device.unwrap_or(
+        Device {
+          name: env::var_os("OSTYPE")
+            .and_then(|cs| cs.into_string().ok())
+            .unwrap_or("".to_string()),
+          version: "".to_string(),
+          build: "".to_string(),
+        }
+      ),
       culprit: culprit.map(|c| c.to_owned()),
       server_name: server_name.map(|c| c.to_owned()),
       stacktrace: stacktrace,
@@ -239,7 +244,7 @@ impl Event {
   ///
   /// ```rust
   /// use sentry_rs::models::Event;
-  /// let mut event: Event = Event::new("my logger", "PANIC", "my message", None, None, None, None, None, None);
+  /// let mut event: Event = Event::new("my logger", "PANIC", "my message", None, None, None, None, None, None, None);
   /// event.add_tag("User".to_owned(), "Chris Pratt".to_owned());
   /// ```
   pub fn add_tag(&mut self, key: String, value: String) {
@@ -247,7 +252,7 @@ impl Event {
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 /// Some Sentry Credentials. Which although not immediatly obvious are super easy to get.
 /// Firsrt things first, go fetch your Client Keys (DSN) like you normally would for a project.
 /// Should look something like:
@@ -282,4 +287,54 @@ pub struct SentryCredentials {
   pub secret: String,
   pub host: Option<String>,
   pub project_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CredentialsParseError {
+  BadUrl,
+  NoApiKey,
+  NoApiSecret,
+  NoHostname,
+  BadProjectId,
+  NoProjectId,
+}
+
+impl FromStr for SentryCredentials {
+  type Err = CredentialsParseError;
+
+  fn from_str(to_parse: &str) -> Result<SentryCredentials, CredentialsParseError> {
+    let attempt_parse = Url::parse(to_parse);
+    if attempt_parse.is_err() {
+      return Err(CredentialsParseError::BadUrl)
+    }
+    let parsed = attempt_parse.unwrap();
+    let potential_username = parsed.username();
+    if potential_username.is_empty() {
+      // The "Username" is equal to the API Key for Sentry Credentials.
+      return Err(CredentialsParseError::NoApiKey)
+    }
+    let potential_password = parsed.password();
+    if potential_password.is_none() {
+      /// The "password" is equal to the API Secret for Sentry Credentials.
+      return Err(CredentialsParseError::NoApiSecret)
+    }
+    let potential_hostname = parsed.host_str();
+    if potential_hostname.is_none() {
+      return Err(CredentialsParseError::NoHostname)
+    }
+    let potential_project_id = parsed.path_segments().and_then(|paths| paths.last());
+    if potential_project_id.is_none() {
+      return Err(CredentialsParseError::BadProjectId)
+    }
+    let project_id = potential_project_id.unwrap();
+    if project_id.is_empty() {
+      return Err(CredentialsParseError::NoProjectId)
+    }
+    Ok(SentryCredentials {
+      key: potential_username.to_owned(),
+      secret: potential_password.unwrap().to_owned(),
+      host: Some(potential_hostname.unwrap().to_owned()),
+      project_id: project_id.to_owned(),
+    })
+  }
 }

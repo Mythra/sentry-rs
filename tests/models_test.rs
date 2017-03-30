@@ -116,3 +116,35 @@ pub fn prep_string_cuts_off_string_in_quotes() {
 
   assert_eq!(finalized_string, "");
 }
+
+#[test]
+pub fn test_sentry_creds_parsing() {
+  let test_string = "https://XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY@ZZZZ/AAA"
+    .to_owned()
+    .parse::<SentryCredentials>();
+  assert!(test_string.is_ok());
+  let manual_creation = SentryCredentials {
+    key: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned(),
+    secret: "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".to_owned(),
+    host: Some("zzzz".to_owned()),
+    project_id: "AAA".to_owned()
+  };
+  assert_eq!(test_string.unwrap(), manual_creation);
+}
+
+#[test]
+pub fn test_sentry_creds_parsing_failure() {
+  let first_test_string = "https://sentry.io/aaa"
+    .to_owned()
+    .parse::<SentryCredentials>();
+  let second_test_string = "https://aaaaaa@sentry.io/aaa"
+    .to_owned()
+    .parse::<SentryCredentials>();
+  let third_test_string = "https://aaa:bbb@sentry.io/"
+    .to_owned()
+    .parse::<SentryCredentials>();
+
+  assert!(first_test_string.is_err());
+  assert!(second_test_string.is_err());
+  assert!(third_test_string.is_err());
+}

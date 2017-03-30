@@ -1,6 +1,6 @@
 [package]
 name = "sentry-rs"
-version = "1.5.1"
+version = "2.0.0"
 authors = ["Eric Coan <ecoan@instructure.com>"]
 description = "A Sentry Client for Rust Lang."
 license = "MIT"
@@ -16,6 +16,7 @@ hyper-native-tls = "0.2"
 serde = "0.9"
 serde_derive = "0.9"
 serde_json = "0.9"
+url = "1"
 
 [features]
 
