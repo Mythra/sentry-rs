@@ -1,3 +1,8 @@
+## 2.1.0 (April 8th, 2017)
+
+- Removed Event Queue Draining before Event Posting.
+- Added missing documentation for string parsing sentry credentials.
+
 ## 2.0.0 (March 29th, 2017)
 
 - Allowed Specifying of Devices (Breaking Change). Still defaults to the same.

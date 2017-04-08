@@ -1,10 +1,11 @@
-//! Provides a list of "Models" for Sentry. These actually represent what gets sent to sentry, and tries to follow their guidelines.
+//! Provides a list of "Models" for Sentry. These actually represent what gets sent to sentry,
+//! and tries to follow their guidelines.
 //!
 //! We don't include any attributes that we ourselves don't use. It may be worthwhile one day to actually
 //! include some of these when it's worthwhile for downstream consumers.
 
 use chrono::offset::utc::UTC;
-use serde_json::{ to_string, Value };
+use serde_json::{to_string, Value};
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
@@ -159,9 +160,7 @@ impl Event {
     }
     if let Some(ref stacktrace) = self.stacktrace {
       let frames = stacktrace.iter()
-        .map(|item| {
-          json!(item)
-        })
+        .map(|item| json!(item))
         .collect::<Vec<Value>>();
       value["stacktrace"] = json!({
         "frames": json!(frames),
@@ -217,15 +216,13 @@ impl Event {
         name: "sentry-rs".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
       },
-      device: device.unwrap_or(
-        Device {
-          name: env::var_os("OSTYPE")
-            .and_then(|cs| cs.into_string().ok())
-            .unwrap_or("".to_string()),
-          version: "".to_string(),
-          build: "".to_string(),
-        }
-      ),
+      device: device.unwrap_or(Device {
+        name: env::var_os("OSTYPE")
+          .and_then(|cs| cs.into_string().ok())
+          .unwrap_or("".to_string()),
+        version: "".to_string(),
+        build: "".to_string(),
+      }),
       culprit: culprit.map(|c| c.to_owned()),
       server_name: server_name.map(|c| c.to_owned()),
       stacktrace: stacktrace,
@@ -282,6 +279,20 @@ impl Event {
 ///   };
 /// }
 /// ```
+///
+/// You can also parse sentry credentials from a String:
+///
+/// ```rust
+/// extern crate sentry_rs;
+/// use sentry_rs::models::*;
+///
+/// fn main() {
+///   let sentry_creds: SentryCredentials =
+///     "https://XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY@ZZZZ/AAA"
+///     .to_owned()
+///     .parse::<SentryCredentials>().unwrap();
+/// }
+/// ```
 pub struct SentryCredentials {
   pub key: String,
   pub secret: String,
@@ -305,30 +316,30 @@ impl FromStr for SentryCredentials {
   fn from_str(to_parse: &str) -> Result<SentryCredentials, CredentialsParseError> {
     let attempt_parse = Url::parse(to_parse);
     if attempt_parse.is_err() {
-      return Err(CredentialsParseError::BadUrl)
+      return Err(CredentialsParseError::BadUrl);
     }
     let parsed = attempt_parse.unwrap();
     let potential_username = parsed.username();
     if potential_username.is_empty() {
       // The "Username" is equal to the API Key for Sentry Credentials.
-      return Err(CredentialsParseError::NoApiKey)
+      return Err(CredentialsParseError::NoApiKey);
     }
     let potential_password = parsed.password();
     if potential_password.is_none() {
       /// The "password" is equal to the API Secret for Sentry Credentials.
-      return Err(CredentialsParseError::NoApiSecret)
+      return Err(CredentialsParseError::NoApiSecret);
     }
     let potential_hostname = parsed.host_str();
     if potential_hostname.is_none() {
-      return Err(CredentialsParseError::NoHostname)
+      return Err(CredentialsParseError::NoHostname);
     }
     let potential_project_id = parsed.path_segments().and_then(|paths| paths.last());
     if potential_project_id.is_none() {
-      return Err(CredentialsParseError::BadProjectId)
+      return Err(CredentialsParseError::BadProjectId);
     }
     let project_id = potential_project_id.unwrap();
     if project_id.is_empty() {
-      return Err(CredentialsParseError::NoProjectId)
+      return Err(CredentialsParseError::NoProjectId);
     }
     Ok(SentryCredentials {
       key: potential_username.to_owned(),
