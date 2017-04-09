@@ -15,6 +15,7 @@ extern crate url;
 pub mod models;
 pub mod workers;
 
+use chrono::Duration as CDuration;
 use chrono::offset::utc::UTC;
 use hyper::Client;
 use hyper::header::{Headers, ContentType};
@@ -25,7 +26,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::BufReader;
 use std::io::BufRead;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -55,7 +56,7 @@ pub struct Sentry {
   pub release: String,
   pub environment: String,
   pub worker: Arc<SingleWorker<Event, SentryCredentials>>,
-  pub reciever: Arc<Mutex<Receiver<()>>>,
+  pub reciever: Arc<Mutex<Receiver<String>>>,
 }
 
 header! {
@@ -65,18 +66,14 @@ header! {
 
 impl Sentry {
   /// Creates a new connection to Sentry.
-  pub fn new(server_name: String,
-             release: String,
-             environment: String,
-             credentials: SentryCredentials)
-             -> Sentry {
+  pub fn new(server_name: String, release: String, environment: String, credentials: SentryCredentials) -> Sentry {
 
-    let (the_sender, the_reciever) = channel::<()>();
+    let (the_sender, the_reciever) = channel::<String>();
     let true_sender = Arc::new(Mutex::new(the_sender));
     let worker = SingleWorker::new(credentials,
                                    Box::new(move |credentials, e| {
                                      Sentry::post(credentials, &e);
-                                     let _ = true_sender.lock().unwrap().send(());
+                                     let _ = true_sender.lock().unwrap().send(e.event_id);
                                    }));
 
     Sentry {
@@ -143,6 +140,7 @@ impl Sentry {
     self.register_panic_handler_with_func(none);
   }
 
+  #[allow(while_true)]
   pub fn register_panic_handler_with_func<F>(&self, maybe_f: Option<F>)
     where F: Fn(&std::panic::PanicInfo) + 'static + Sync + Send
   {
@@ -242,20 +240,32 @@ impl Sentry {
                              None);
       let recv = the_rec.lock();
       if recv.is_err() {
+        info!("Couldn't Grab Recv Mutex, falling back to max timeout...");
         std::thread::sleep(Duration::from_secs(5));
         return;
       }
       let recv = recv.unwrap();
-      loop {
-        let result = recv.try_recv();
-        if result.is_err() {
-          break;
-        }
-      }
-      let result = worker.work_with(event.clone());
+      let event_id = event.event_id.clone();
+      let result = worker.work_with(event);
       if result.is_ok() {
-        // Wait for sentry before bailing.
-        let _ = recv.recv_timeout(Duration::from_secs(5));
+        let start_time = UTC::now();
+        while true {
+          // Wait for sentry before bailing.
+          let recived_id = recv.recv_timeout(Duration::from_secs(5));
+          if recived_id.is_err() {
+            if recived_id.err().unwrap() == RecvTimeoutError::Timeout {
+              break;
+            }
+          } else {
+            if recived_id.unwrap() == event_id {
+              break;
+            }
+          }
+          if UTC::now().signed_duration_since(start_time) >= CDuration::seconds(5) {
+            info!("Didn't recieve event in 5 seconds, bailing anyway.");
+            break;
+          }
+        }
       }
       if let Some(ref f) = maybe_f {
         f(info);
