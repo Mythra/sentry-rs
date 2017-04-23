@@ -1,3 +1,7 @@
+## 2.1.1 (April 22nd, 2017)
+
+- Bump Serde dependencies.
+
 ## 2.1.0 (April 8th, 2017)
 
 - Removed Event Queue Draining before Event Posting.
