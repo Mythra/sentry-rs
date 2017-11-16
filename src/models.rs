@@ -93,7 +93,7 @@ pub struct Event {
   /// The modules of this event.
   pub modules: BTreeMap<String, String>,
   /// The extra info for this event.
-  pub extra: BTreeMap<String, serde_json::Value>,
+  pub extra: BTreeMap<String, Value>,
   /// The fingerprints of this event.
   pub fingerprint: Vec<String>,
 }
