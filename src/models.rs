@@ -93,7 +93,7 @@ pub struct Event {
   /// The modules of this event.
   pub modules: BTreeMap<String, String>,
   /// The extra info for this event.
-  pub extra: BTreeMap<String, String>,
+  pub extra: BTreeMap<String, serde_json::Value>,
   /// The fingerprints of this event.
   pub fingerprint: Vec<String>,
 }
@@ -156,10 +156,11 @@ impl Event {
     }
     let extra_len = self.extra.len();
     if extra_len > 0 {
-      value["extra"] = json!(self.extra);
+      value["extra"] = self.extra;
     }
     if let Some(ref stacktrace) = self.stacktrace {
-      let frames = stacktrace.iter()
+      let frames = stacktrace
+        .iter()
         .map(|item| json!(item))
         .collect::<Vec<Value>>();
       value["stacktrace"] = json!({
@@ -193,17 +194,18 @@ impl Event {
   /// Some(vec!["fingerprint".to_owned()]), Some("server name"), Some(vec![]),
   /// Some("release"), Some("production"), None);
   /// ```
-  pub fn new(logger: &str,
-             level: &str,
-             message: &str,
-             culprit: Option<&str>,
-             fingerprint: Option<Vec<String>>,
-             server_name: Option<&str>,
-             stacktrace: Option<Vec<StackFrame>>,
-             release: Option<&str>,
-             environment: Option<&str>,
-             device: Option<Device>)
-             -> Event {
+  pub fn new(
+    logger: &str,
+    level: &str,
+    message: &str,
+    culprit: Option<&str>,
+    fingerprint: Option<Vec<String>>,
+    server_name: Option<&str>,
+    stacktrace: Option<Vec<StackFrame>>,
+    release: Option<&str>,
+    environment: Option<&str>,
+    device: Option<Device>,
+  ) -> Event {
 
     Event {
       event_id: "".to_owned(),
