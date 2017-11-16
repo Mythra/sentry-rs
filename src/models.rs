@@ -6,7 +6,7 @@
 
 use chrono::offset::utc::UTC;
 use serde_json::{to_string, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::str::FromStr;
 use url::Url;
@@ -93,7 +93,7 @@ pub struct Event {
   /// The modules of this event.
   pub modules: BTreeMap<String, String>,
   /// The extra info for this event.
-  pub extra: BTreeMap<String, Value>,
+  pub extra: HashMap<String, Value>,
   /// The fingerprints of this event.
   pub fingerprint: Vec<String>,
 }
@@ -156,7 +156,7 @@ impl Event {
     }
     let extra_len = self.extra.len();
     if extra_len > 0 {
-      value["extra"] = self.extra;
+      value["extra"] = json!(self.extra);
     }
     if let Some(ref stacktrace) = self.stacktrace {
       let frames = stacktrace
