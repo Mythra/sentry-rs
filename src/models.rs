@@ -6,7 +6,7 @@
 
 use chrono::offset::utc::UTC;
 use serde_json::{to_string, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::str::FromStr;
 use url::Url;
@@ -57,7 +57,7 @@ pub struct Device {
   pub build: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 /// An Event that gets sent to Sentry. Each attribute is described in detail [HERE].
 ///
 /// [HERE]: https://docs.sentry.io/clientdev/attributes/
@@ -93,7 +93,7 @@ pub struct Event {
   /// The modules of this event.
   pub modules: BTreeMap<String, String>,
   /// The extra info for this event.
-  pub extra: BTreeMap<String, String>,
+  pub extra: HashMap<String, Value>,
   /// The fingerprints of this event.
   pub fingerprint: Vec<String>,
 }
@@ -159,7 +159,8 @@ impl Event {
       value["extra"] = json!(self.extra);
     }
     if let Some(ref stacktrace) = self.stacktrace {
-      let frames = stacktrace.iter()
+      let frames = stacktrace
+        .iter()
         .map(|item| json!(item))
         .collect::<Vec<Value>>();
       value["stacktrace"] = json!({
@@ -193,17 +194,18 @@ impl Event {
   /// Some(vec!["fingerprint".to_owned()]), Some("server name"), Some(vec![]),
   /// Some("release"), Some("production"), None);
   /// ```
-  pub fn new(logger: &str,
-             level: &str,
-             message: &str,
-             culprit: Option<&str>,
-             fingerprint: Option<Vec<String>>,
-             server_name: Option<&str>,
-             stacktrace: Option<Vec<StackFrame>>,
-             release: Option<&str>,
-             environment: Option<&str>,
-             device: Option<Device>)
-             -> Event {
+  pub fn new(
+    logger: &str,
+    level: &str,
+    message: &str,
+    culprit: Option<&str>,
+    fingerprint: Option<Vec<String>>,
+    server_name: Option<&str>,
+    stacktrace: Option<Vec<StackFrame>>,
+    release: Option<&str>,
+    environment: Option<&str>,
+    device: Option<Device>,
+  ) -> Event {
 
     Event {
       event_id: "".to_owned(),
@@ -230,7 +232,7 @@ impl Event {
       tags: BTreeMap::new(),
       environment: environment.map(|c| c.to_owned()),
       modules: BTreeMap::new(),
-      extra: BTreeMap::new(),
+      extra: HashMap::new(),
       fingerprint: fingerprint.unwrap_or(vec![]),
     }
   }
@@ -326,7 +328,7 @@ impl FromStr for SentryCredentials {
     }
     let potential_password = parsed.password();
     if potential_password.is_none() {
-      /// The "password" is equal to the API Secret for Sentry Credentials.
+      // The "password" is equal to the API Secret for Sentry Credentials.
       return Err(CredentialsParseError::NoApiSecret);
     }
     let potential_hostname = parsed.host_str();
