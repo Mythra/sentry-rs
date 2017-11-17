@@ -57,7 +57,7 @@ pub struct Device {
   pub build: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 /// An Event that gets sent to Sentry. Each attribute is described in detail [HERE].
 ///
 /// [HERE]: https://docs.sentry.io/clientdev/attributes/
@@ -232,7 +232,7 @@ impl Event {
       tags: BTreeMap::new(),
       environment: environment.map(|c| c.to_owned()),
       modules: BTreeMap::new(),
-      extra: BTreeMap::new(),
+      extra: HashMap::new(),
       fingerprint: fingerprint.unwrap_or(vec![]),
     }
   }
@@ -328,7 +328,7 @@ impl FromStr for SentryCredentials {
     }
     let potential_password = parsed.password();
     if potential_password.is_none() {
-      /// The "password" is equal to the API Secret for Sentry Credentials.
+      // The "password" is equal to the API Secret for Sentry Credentials.
       return Err(CredentialsParseError::NoApiSecret);
     }
     let potential_hostname = parsed.host_str();

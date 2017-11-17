@@ -1,7 +1,9 @@
 extern crate sentry_rs;
+#[macro_use]
+extern crate serde_json;
 
 use sentry_rs::models::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub fn generate_shallow_event() -> Event {
   Event {
@@ -27,7 +29,7 @@ pub fn generate_shallow_event() -> Event {
     tags: BTreeMap::new(),
     environment: None,
     modules: BTreeMap::new(),
-    extra: BTreeMap::new(),
+    extra: HashMap::new(),
     fingerprint: vec![],
   }
 }
@@ -39,9 +41,9 @@ pub fn generate_full_event() -> Event {
   let mut modules = BTreeMap::new();
   modules.insert("module_key".to_owned(), "module_value".to_owned());
   modules.insert("module_key_2".to_owned(), "module_value_2".to_owned());
-  let mut extras = BTreeMap::new();
-  extras.insert("extra_key".to_owned(), "extra_value".to_owned());
-  extras.insert("extra_key_2".to_owned(), "extra_value_2".to_owned());
+  let mut extras = HashMap::new();
+  extras.insert("extra_key".to_owned(), json!("extra_value"));
+  extras.insert("extra_key_2".to_owned(), json!("extra_value_2"));
   Event {
     event_id: "event_id".to_owned(),
     message: "message".to_owned(),
@@ -67,14 +69,14 @@ pub fn generate_full_event() -> Event {
         lineno: 10,
         pre_context: vec![
           "filename: \"filename.stack.frame\".to_owned()".to_owned(),
-          "function: \"function.stack.frame\".to_owned()".to_owned()
+          "function: \"function.stack.frame\".to_owned()".to_owned(),
         ],
         context_line: "context_line: \"context_line\"".to_owned(),
         post_context: vec![
           "filename: \"filename.stack.frame\".to_owned()".to_owned(),
-          "function: \"function.stack.frame\".to_owned()".to_owned()
+          "function: \"function.stack.frame\".to_owned()".to_owned(),
         ],
-        in_app: true
+        in_app: true,
       },
       StackFrame {
         filename: "filename.2.stack.frame".to_owned(),
@@ -83,7 +85,7 @@ pub fn generate_full_event() -> Event {
         pre_context: Vec::new(),
         context_line: "".to_owned(),
         post_context: Vec::new(),
-        in_app: false
+        in_app: false,
       },
     ]),
     release: Some("Release".to_owned()),
@@ -91,9 +93,7 @@ pub fn generate_full_event() -> Event {
     environment: Some("environment".to_owned()),
     modules: modules,
     extra: extras,
-    fingerprint: vec![
-      "fingerprint".to_owned()
-    ],
+    fingerprint: vec!["fingerprint".to_owned()],
   }
 }
 
@@ -127,7 +127,7 @@ pub fn test_sentry_creds_parsing() {
     key: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned(),
     secret: "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".to_owned(),
     host: Some("zzzz".to_owned()),
-    project_id: "AAA".to_owned()
+    project_id: "AAA".to_owned(),
   };
   assert_eq!(test_string.unwrap(), manual_creation);
 }
