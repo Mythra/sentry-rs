@@ -6,7 +6,7 @@
 
 use chrono::offset::utc::UTC;
 use serde_json::{to_string, Value};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 use url::Url;
@@ -87,11 +87,11 @@ pub struct Event {
   /// The release of this event.
   pub release: Option<String>,
   /// The tags of this event.
-  pub tags: BTreeMap<String, String>,
+  pub tags: HashMap<String, String>,
   /// The environment this event occured in.
   pub environment: Option<String>,
   /// The modules of this event.
-  pub modules: BTreeMap<String, String>,
+  pub modules: HashMap<String, String>,
   /// The extra info for this event.
   pub extra: HashMap<String, Value>,
   /// The fingerprints of this event.
@@ -229,9 +229,9 @@ impl Event {
       server_name: server_name.map(|c| c.to_owned()),
       stacktrace: stacktrace,
       release: release.map(|c| c.to_owned()),
-      tags: BTreeMap::new(),
+      tags: HashMap::new(),
       environment: environment.map(|c| c.to_owned()),
-      modules: BTreeMap::new(),
+      modules: HashMap::new(),
       extra: HashMap::new(),
       fingerprint: fingerprint.unwrap_or(vec![]),
     }

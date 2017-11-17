@@ -3,7 +3,7 @@ extern crate sentry_rs;
 extern crate serde_json;
 
 use sentry_rs::models::*;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 pub fn generate_shallow_event() -> Event {
   Event {
@@ -26,19 +26,19 @@ pub fn generate_shallow_event() -> Event {
     server_name: None,
     stacktrace: None,
     release: None,
-    tags: BTreeMap::new(),
+    tags: HashMap::new(),
     environment: None,
-    modules: BTreeMap::new(),
+    modules: HashMap::new(),
     extra: HashMap::new(),
     fingerprint: vec![],
   }
 }
 
 pub fn generate_full_event() -> Event {
-  let mut tags = BTreeMap::new();
+  let mut tags = HashMap::new();
   tags.insert("tag_key".to_owned(), "tag_value".to_owned());
   tags.insert("tag_key_2".to_owned(), "tag_value_2".to_owned());
-  let mut modules = BTreeMap::new();
+  let mut modules = HashMap::new();
   modules.insert("module_key".to_owned(), "module_value".to_owned());
   modules.insert("module_key_2".to_owned(), "module_value_2".to_owned());
   let mut extras = HashMap::new();

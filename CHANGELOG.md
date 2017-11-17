@@ -1,3 +1,8 @@
+## 2.1.2 (November 16th, 2017)
+
+- Allow Extras to be a JSON Value.
+- Use HashMap over BTreeMap.
+
 ## 2.1.1 (April 22nd, 2017)
 
 - Bump Serde dependencies.
