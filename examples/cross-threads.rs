@@ -8,6 +8,7 @@ use std::thread;
 
 fn main() {
   let credentials = SentryCredentials {
+    scheme: env::var("SENTRY_SCHEME").unwrap_or("https".to_owned()),
     key: env::var("SENTRY_KEY").unwrap_or("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned()),
     secret: env::var("SENTRY_SECRET").unwrap_or("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".to_owned()),
     host: Some(env::var("SENTRY_HOST").unwrap_or("app.getsentry.com".to_owned())),
