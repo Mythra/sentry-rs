@@ -104,18 +104,30 @@ impl Sentry {
 
     let body = e.to_string();
 
-    let ssl = NativeTlsClient::new().unwrap();
-    let connector = HttpsConnector::new(ssl);
-    let mut client = Client::with_connector(connector);
+    debug!("body is: {:?}", body);
+
+    let mut client = match credentials.scheme.as_ref() {
+      "https" => {
+        let ssl = NativeTlsClient::new().unwrap();
+        let connector = HttpsConnector::new(ssl);
+        Client::with_connector(connector)
+      }
+      _ => {
+        Client::new()
+      }
+    };
+
     client.set_read_timeout(Some(Duration::new(5, 0)));
     client.set_write_timeout(Some(Duration::new(5, 0)));
 
-    let url = format!("https://{}:{}@{}/api/{}/store/",
+    let url = format!("{}://{}:{}@{}/api/{}/store/",
+                      credentials.scheme,
                       credentials.key,
                       credentials.secret,
                       credentials.host.clone().unwrap_or("sentry.io".to_owned()),
                       credentials.project_id);
 
+    debug!("Posting url: {:?}", url.clone());
     debug!("Posting body: {:?}", body.clone());
 
     let res = client.post(&url).headers(headers).body(&body).send();

@@ -124,6 +124,7 @@ pub fn test_sentry_creds_parsing() {
     .parse::<SentryCredentials>();
   assert!(test_string.is_ok());
   let manual_creation = SentryCredentials {
+    scheme: "https".to_owned(),
     key: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned(),
     secret: "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".to_owned(),
     host: Some("zzzz".to_owned()),

@@ -274,6 +274,7 @@ impl Event {
 ///
 /// fn main() {
 ///   let credentials = SentryCredentials {
+///     scheme: env::var("SENTRY_SCHEME").unwrap_or("https".to_owned()),
 ///     key: env::var("SENTRY_KEY").unwrap_or("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned()),
 ///     secret: env::var("SENTRY_SECRET").unwrap_or("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".to_owned()),
 ///     host: Some(env::var("SENTRY_HOST").unwrap_or("sentry.io".to_owned())),
@@ -296,6 +297,7 @@ impl Event {
 /// }
 /// ```
 pub struct SentryCredentials {
+  pub scheme: String,
   pub key: String,
   pub secret: String,
   pub host: Option<String>,
@@ -321,6 +323,7 @@ impl FromStr for SentryCredentials {
       return Err(CredentialsParseError::BadUrl);
     }
     let parsed = attempt_parse.unwrap();
+    let scheme = parsed.scheme();
     let potential_username = parsed.username();
     if potential_username.is_empty() {
       // The "Username" is equal to the API Key for Sentry Credentials.
@@ -344,6 +347,7 @@ impl FromStr for SentryCredentials {
       return Err(CredentialsParseError::NoProjectId);
     }
     Ok(SentryCredentials {
+      scheme: scheme.to_owned(),
       key: potential_username.to_owned(),
       secret: potential_password.unwrap().to_owned(),
       host: Some(potential_hostname.unwrap().to_owned()),
