@@ -1,8 +1,11 @@
 extern crate backtrace;
 extern crate chrono;
+extern crate futures;
 #[macro_use]
 extern crate hyper;
-extern crate hyper_native_tls;
+extern crate hyper_tls;
+#[macro_use]
+extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate serde;
@@ -10,27 +13,32 @@ extern crate serde;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+extern crate tokio_core;
 extern crate url;
+extern crate yyid;
 
 pub mod models;
+pub mod reactor;
+pub mod request;
 pub mod workers;
 
-use chrono::Duration as CDuration;
-use chrono::offset::utc::UTC;
-use hyper::Client;
-use hyper::header::{Headers, ContentType};
-use hyper::net::HttpsConnector;
-use hyper_native_tls::NativeTlsClient;
 use models::*;
+use request::DispatchRequest;
+use workers::single::SingleWorker;
+
+use chrono::Duration as CDuration;
+use chrono::prelude::Utc;
+use futures::Future;
+use hyper::{Method as HyperMethod, Request as HyperRequest};
+use hyper::header::ContentType;
+
 use std::fs::File;
-use std::io::Read;
 use std::io::BufReader;
 use std::io::BufRead;
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use workers::single::SingleWorker;
 
 /// The Thread State of the listening Worker that sends items off to sentry.
 /// Contains a single atomic boolean for knowing whether or not it's alive cross threads.
@@ -67,14 +75,15 @@ header! {
 impl Sentry {
   /// Creates a new connection to Sentry.
   pub fn new(server_name: String, release: String, environment: String, credentials: SentryCredentials) -> Sentry {
-
     let (the_sender, the_reciever) = channel::<String>();
     let true_sender = Arc::new(Mutex::new(the_sender));
-    let worker = SingleWorker::new(credentials,
-                                   Box::new(move |credentials, e| {
-                                     Sentry::post(credentials, &e);
-                                     let _ = true_sender.lock().unwrap().send(e.event_id);
-                                   }));
+    let worker = SingleWorker::new(
+      credentials,
+      Box::new(move |credentials, e| {
+        Sentry::post(credentials, &e);
+        let _ = true_sender.lock().unwrap().send(e.event_id);
+      }),
+    );
 
     Sentry {
       server_name: server_name,
@@ -88,57 +97,50 @@ impl Sentry {
   /// Internal method to post a Sentry Message.
   fn post(credentials: &SentryCredentials, e: &Event) {
     info!("Post has been called for Sentry!");
-    let mut headers = Headers::new();
-    debug!("Created Headers!");
-    let timestamp = UTC::now().timestamp().to_string();
-    debug!("Got Timestamp for Sentry: [ {:?} ]", timestamp.clone());
-    let sentry_auth = format!("Sentry sentry_version=7,sentry_client=sentry-rs/{},\
-                               sentry_timestamp={},sentry_key={},sentry_secret={}",
-                              env!("CARGO_PKG_VERSION"),
-                              timestamp,
-                              credentials.key,
-                              credentials.secret);
-    headers.set(XSentryAuth(sentry_auth));
-    headers.set(ContentType::json());
-    debug!("Content Headers Set!");
-
     let body = e.to_string();
 
     debug!("body is: {:?}", body);
 
-    let mut client = match credentials.scheme.as_ref() {
-      "https" => {
-        let ssl = NativeTlsClient::new().unwrap();
-        let connector = HttpsConnector::new(ssl);
-        Client::with_connector(connector)
-      }
-      _ => {
-        Client::new()
-      }
+    let client = match credentials.scheme.as_ref() {
+      "https" => reactor::RequestDispatcher::default(),
+      _ => reactor::RequestDispatcher::default_non_secure(),
     };
 
-    client.set_read_timeout(Some(Duration::new(5, 0)));
-    client.set_write_timeout(Some(Duration::new(5, 0)));
+    let url = format!(
+      "{}://{}:{}@{}/api/{}/store/",
+      credentials.scheme,
+      credentials.key,
+      credentials.secret,
+      credentials.host.clone().unwrap_or("sentry.io".to_owned()),
+      credentials.project_id
+    ).parse()
+      .expect("Failed to parse sentry uri!");
 
-    let url = format!("{}://{}:{}@{}/api/{}/store/",
-                      credentials.scheme,
-                      credentials.key,
-                      credentials.secret,
-                      credentials.host.clone().unwrap_or("sentry.io".to_owned()),
-                      credentials.project_id);
+    debug!("Posting url: {:?}", &url);
+    debug!("Posting body: {:?}", &body);
 
-    debug!("Posting url: {:?}", url.clone());
-    debug!("Posting body: {:?}", body.clone());
+    let mut req = HyperRequest::new(HyperMethod::Post, url);
 
-    let res = client.post(&url).headers(headers).body(&body).send();
-    if res.is_err() {
-      return;
-    }
-    let mut res = res.unwrap();
+    let timestamp = Utc::now().timestamp().to_string();
+    let sentry_auth = format!(
+      "Sentry sentry_version=7,sentry_client=sentry-rs/{},\
+       sentry_timestamp={},sentry_key={},sentry_secret={}",
+      env!("CARGO_PKG_VERSION"),
+      timestamp,
+      credentials.key,
+      credentials.secret
+    );
+    req.headers_mut().set(ContentType::json());
+    req.headers_mut().set(XSentryAuth(sentry_auth));
+    req.set_body(body);
 
-    let mut body = String::new();
-    res.read_to_string(&mut body).unwrap();
-    info!("Sentry Response: {:?}", body);
+    let _ = client
+      .dispatch(req, None)
+      .and_then(|resp| {
+        info!("Resp Code from sentry is: {}", resp.status);
+        futures::future::ok(())
+      })
+      .wait();
   }
 
   /// Handles a logged event.
@@ -154,7 +156,8 @@ impl Sentry {
 
   #[allow(while_true)]
   pub fn register_panic_handler_with_func<F>(&self, maybe_f: Option<F>)
-    where F: Fn(&std::panic::PanicInfo) + 'static + Sync + Send
+  where
+    F: Fn(&std::panic::PanicInfo) + 'static + Sync + Send,
   {
     info!("Registering Panic Handler for Sentry!");
     let server_name = self.server_name.clone();
@@ -166,25 +169,26 @@ impl Sentry {
     let the_rec = self.reciever.clone();
 
     std::panic::set_hook(Box::new(move |info: &std::panic::PanicInfo| {
-      let location = info.location()
+      let location = info
+        .location()
         .map(|l| format!("{}: {}", l.file(), l.line()))
         .unwrap_or("Unknown".to_string());
       let msg = match info.payload().downcast_ref::<&'static str>() {
         Some(s) => *s,
-        None => {
-          match info.payload().downcast_ref::<String>() {
-            Some(s) => &s[..],
-            None => "Box<Any>",
-          }
-        }
+        None => match info.payload().downcast_ref::<String>() {
+          Some(s) => &s[..],
+          None => "Box<Any>",
+        },
       };
 
       let mut frames = vec![];
       backtrace::trace(|frame: &backtrace::Frame| {
         backtrace::resolve(frame.ip(), |symbol| {
-          let name = symbol.name()
+          let name = symbol
+            .name()
             .map_or("unresolved symbol".to_string(), |name| name.to_string());
-          let filename = symbol.filename()
+          let filename = symbol
+            .filename()
             .map_or("".to_string(), |sym| format!("{:?}", sym));
           let lineno = symbol.lineno().unwrap_or(0);
 
@@ -200,31 +204,28 @@ impl Sentry {
               let buffed_reader = BufReader::new(&file);
               let items = buffed_reader.lines().skip((lineno - 6) as usize).take(11);
 
-              let mut i = 0;
-              for item in items {
-                if item.is_ok() {
-                  let true_item = item.unwrap();
-                  match i {
-                    0 | 1 | 2 | 3 | 4 => {
-                      pre_context.push(true_item);
-                    }
-                    5 => {
-                      context_line = true_item;
-                    }
-                    6 | 7 | 8 | 9 | 10 => {
-                      post_context.push(true_item);
-                    }
-                    _ => continue,
+              // Since we hard code take 11, we can hardcode our pivot point.
+              // normally this would be equivelant to `!!(len / 2)`
+              // where `!` is a binary NOT.
+              let pivot = 5;
+              for (idx, val) in items.enumerate() {
+                if let Ok(true_item) = val {
+                  if idx < pivot {
+                    pre_context.push(true_item);
+                  } else if idx == pivot {
+                    context_line = true_item;
+                  } else {
+                    post_context.push(true_item);
                   }
                 }
-                i += 1;
               }
             } else {
               drop(f);
             }
           }
 
-          let in_app = !(fixed_filename.starts_with("/buildslave") || fixed_filename == "");
+          let in_app = !(fixed_filename.starts_with("/buildslave") || fixed_filename == ""
+            || fixed_filename.starts_with("/checkout"));
 
           frames.push(StackFrame {
             filename: filename,
@@ -240,16 +241,18 @@ impl Sentry {
         true
       });
 
-      let event = Event::new("panic",
-                             "fatal",
-                             msg,
-                             Some(&location),
-                             None,
-                             Some(&server_name),
-                             Some(frames),
-                             Some(&release),
-                             Some(&environment),
-                             None);
+      let event = Event::new(
+        "panic",
+        "fatal",
+        msg,
+        Some(&location),
+        None,
+        Some(&server_name),
+        Some(frames),
+        Some(&release),
+        Some(&environment),
+        None,
+      );
       let recv = the_rec.lock();
       if recv.is_err() {
         info!("Couldn't Grab Recv Mutex, falling back to max timeout...");
@@ -260,7 +263,7 @@ impl Sentry {
       let event_id = event.event_id.clone();
       let result = worker.work_with(event);
       if result.is_ok() {
-        let start_time = UTC::now();
+        let start_time = Utc::now();
         while true {
           // Wait for sentry before bailing.
           let recived_id = recv.recv_timeout(Duration::from_secs(5));
@@ -273,7 +276,7 @@ impl Sentry {
               break;
             }
           }
-          if UTC::now().signed_duration_since(start_time) >= CDuration::seconds(5) {
+          if Utc::now().signed_duration_since(start_time) >= CDuration::seconds(5) {
             info!("Didn't recieve event in 5 seconds, bailing anyway.");
             break;
           }
@@ -318,32 +321,35 @@ impl Sentry {
   }
 
   /// Handles a log call of any level.
-  fn log(&self,
-         logger: &str,
-         level: &str,
-         message: &str,
-         culprit: Option<&str>,
-         fingerprint: Option<Vec<String>>,
-         device: Option<Device>) {
-
+  fn log(
+    &self,
+    logger: &str,
+    level: &str,
+    message: &str,
+    culprit: Option<&str>,
+    fingerprint: Option<Vec<String>>,
+    device: Option<Device>,
+  ) {
     let fpr = match fingerprint {
       Some(f) => f,
-      None => {
-        vec![logger.to_string(),
-             level.to_string(),
-             culprit.map(|c| c.to_string()).unwrap_or("".to_string())]
-      }
+      None => vec![
+        logger.to_string(),
+        level.to_string(),
+        culprit.map(|c| c.to_string()).unwrap_or("".to_string()),
+      ],
     };
 
-    let _ = self.worker.work_with(Event::new(logger,
-                                             level,
-                                             message,
-                                             culprit,
-                                             Some(fpr),
-                                             Some(&self.server_name),
-                                             None,
-                                             Some(&self.release),
-                                             Some(&self.environment),
-                                             device));
+    let _ = self.worker.work_with(Event::new(
+      logger,
+      level,
+      message,
+      culprit,
+      Some(fpr),
+      Some(&self.server_name),
+      None,
+      Some(&self.release),
+      Some(&self.environment),
+      device,
+    ));
   }
 }

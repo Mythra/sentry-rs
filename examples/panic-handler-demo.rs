@@ -1,10 +1,12 @@
+extern crate env_logger;
 extern crate sentry_rs;
 
 use sentry_rs::models::SentryCredentials;
 use sentry_rs::Sentry;
-use std::{ env, thread };
+use std::{env, thread};
 
 fn main() {
+  env_logger::init();
   let credentials = SentryCredentials {
     scheme: env::var("SENTRY_SCHEME").unwrap_or("https".to_owned()),
     key: env::var("SENTRY_KEY").unwrap_or("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned()),
@@ -16,7 +18,7 @@ fn main() {
     "Test Boxen".to_string(),
     "0.1.0".to_string(),
     "Production".to_string(),
-    credentials
+    credentials,
   );
 
   sentry.register_panic_handler();

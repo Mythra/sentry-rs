@@ -1,13 +1,14 @@
 //! Houses the implementation of anything for the "SingleWorker",
 //! Which is the single threaded worker for sentry.
 
+use ThreadState;
+use workers::WorkerClosure;
+
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender, SendError};
+use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::thread;
-use ::ThreadState;
-use ::workers::WorkerClosure;
 
 /// A Single Worker thread that sends items to Sentry.
 pub struct SingleWorker<T: 'static + Send, P: Clone + Send> {

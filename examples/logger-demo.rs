@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate sentry_rs;
 
 use sentry_rs::models::SentryCredentials;
@@ -5,6 +6,7 @@ use sentry_rs::Sentry;
 use std::env;
 
 fn main() {
+  env_logger::init();
   let credentials = SentryCredentials {
     scheme: env::var("SENTRY_SCHEME").unwrap_or("https".to_owned()),
     key: env::var("SENTRY_KEY").unwrap_or("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned()),
@@ -16,7 +18,7 @@ fn main() {
     "Server Name".to_string(),
     "Release of Your Project Consider using env!()".to_string(),
     "Environment you're deployed in".to_string(),
-    credentials
+    credentials,
   );
 
   // Logger Name, Message to Log, Potential Culprit (Option<&str>), Device (Option<Device>).
