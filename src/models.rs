@@ -55,6 +55,8 @@ pub struct Device {
   pub name: String,
   /// The version of this device.
   pub version: String,
+  /// The build of the device.
+  pub build: Option<String>
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -220,6 +222,7 @@ impl Event {
       device: device.unwrap_or(Device {
         name: env::consts::FAMILY.to_owned(),
         version: env::consts::OS.to_owned(),
+        build: None,
       }),
       culprit: culprit.map(|c| c.to_owned()),
       server_name: server_name.map(|c| c.to_owned()),
