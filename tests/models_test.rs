@@ -20,7 +20,7 @@ pub fn generate_shallow_event() -> Event {
     device: Device {
       name: "device_name".to_owned(),
       version: "device_version".to_owned(),
-      build: "device_build".to_owned(),
+      build: Some("device_build".to_owned()),
     },
     culprit: None,
     server_name: None,
@@ -58,7 +58,7 @@ pub fn generate_full_event() -> Event {
     device: Device {
       name: "device_name".to_owned(),
       version: "device_version".to_owned(),
-      build: "device_build".to_owned(),
+      build: Some("device_build".to_owned()),
     },
     culprit: Some("culprit".to_owned()),
     server_name: Some("server_name".to_owned()),

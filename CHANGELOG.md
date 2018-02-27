@@ -1,3 +1,10 @@
+## 2.2.0 (Febuary 25th, 2018)
+
+- Use Hyper 0.11 instead of Hyper 0.10 (Async I/O!)
+- Fix validation errors with device/event-id.
+- Update some other dependencies.
+- Have Examples actually log now.
+
 ## 2.1.2 (November 16th, 2017)
 
 - Allow Extras to be a JSON Value.

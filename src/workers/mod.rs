@@ -5,6 +5,10 @@
 
 /// The Trait for a Clojure being able to work on the Sentry Queue of events.
 pub trait WorkerClosure<T, P>: Fn(&P, T) -> () + Send + Sync {}
-impl<T, F, P> WorkerClosure<T, P> for F where F: Fn(&P, T) -> () + Send + Sync {}
+impl<T, F, P> WorkerClosure<T, P> for F
+where
+  F: Fn(&P, T) -> () + Send + Sync,
+{
+}
 
 pub mod single;

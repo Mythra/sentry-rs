@@ -4,12 +4,14 @@
 //! We don't include any attributes that we ourselves don't use. It may be worthwhile one day to actually
 //! include some of these when it's worthwhile for downstream consumers.
 
-use chrono::offset::utc::UTC;
+use chrono::prelude::*;
 use serde_json::{to_string, Value};
+use url::Url;
+use yyid::yyid_string as uuidv4_string;
+
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
-use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 /// A Stackframe to Send to Sentry. Each attribute is described in detail [HERE].
@@ -47,14 +49,14 @@ pub struct SDK {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 /// Information about the device for Sentry. Each attribute is described in detail [HERE].
 ///
-/// [HERE]: https://docs.sentry.io/clientdev/attributes/
+/// [HERE]: https://docs.sentry.io/clientdev/interfaces/contexts/
 pub struct Device {
   /// The name of the device.
   pub name: String,
-  /// The version of the device.
+  /// The version of this device.
   pub version: String,
   /// The build of the device.
-  pub build: String,
+  pub build: Option<String>
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -206,11 +208,10 @@ impl Event {
     environment: Option<&str>,
     device: Option<Device>,
   ) -> Event {
-
     Event {
-      event_id: "".to_owned(),
+      event_id: uuidv4_string().replace("-", ""),
       message: message.to_owned(),
-      timestamp: UTC::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+      timestamp: Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
       level: level.to_owned(),
       logger: logger.to_owned(),
       platform: "other".to_string(),
@@ -219,11 +220,9 @@ impl Event {
         version: env!("CARGO_PKG_VERSION").to_string(),
       },
       device: device.unwrap_or(Device {
-        name: env::var_os("OSTYPE")
-          .and_then(|cs| cs.into_string().ok())
-          .unwrap_or("".to_string()),
-        version: "".to_string(),
-        build: "".to_string(),
+        name: env::consts::FAMILY.to_owned(),
+        version: env::consts::OS.to_owned(),
+        build: None,
       }),
       culprit: culprit.map(|c| c.to_owned()),
       server_name: server_name.map(|c| c.to_owned()),
