@@ -8,8 +8,13 @@ use sentry_rs::logging::SentryLogger;
 use std::env;
 
 fn main() {
-  let dsn = "https://XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY@sentry.io/XX";
-  let credentials = SentryCredentials::from_str(dsn).unwrap();
+  let credentials = SentryCredentials {
+    scheme: env::var("SENTRY_SCHEME").unwrap_or("https".to_owned()),
+    key: env::var("SENTRY_KEY").unwrap_or("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_owned()),
+    secret: env::var("SENTRY_SECRET").unwrap_or("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".to_owned()),
+    host: Some(env::var("SENTRY_HOST").unwrap_or("app.getsentry.com".to_owned())),
+    project_id: env::var("SENTRY_PROJECT_ID").unwrap_or("XX".to_owned()),
+  };
   let sentry = Sentry::new(
     "Server Name".to_string(),
     "Release of Your Project Consider using env!()".to_string(),
@@ -17,7 +22,7 @@ fn main() {
     credentials,
   );
 
-  SentryLogger::init(sentry, "default logger", log::Level::Warn);
+  SentryLogger::init(sentry, "default logger".to_string(), log::Level::Warn);
   debug!("This debug message won't be logged to Sentry.");
   info!("This info message won't be logged to Sentry.");
   warn!("This warn message should be logged to Sentry.");

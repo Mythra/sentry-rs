@@ -2,10 +2,13 @@
 
 use log::{self, Log, Record, Level, Metadata, SetLoggerError};
 
-use super::Sentry;
+use Sentry;
 
 /// Logger which implements the `log::Log` trait. This allows logging via the
 /// macros defined in the `log` crate.
+///
+/// Note: Sentry doesn't support logging at the `trace` level, so messages sent at this level will
+/// be sent to Sentry at the `debug` level.
 pub struct SentryLogger {
   // Sentry client used for delivering log messages.
   sentry: Sentry,
@@ -25,12 +28,8 @@ impl SentryLogger {
   /// * `sentry` - Sentry client used to deliver log messages.
   /// * `logger_name` - String used as logger name in messages.
   /// * `level` - Minimum level to log messages to Sentry at.
-  pub fn new(sentry: Sentry, logger_name: &str, level: Level) -> Self {
-    SentryLogger {
-      sentry,
-      logger_name: logger_name.to_owned(),
-      level
-    }
+  pub fn new(sentry: Sentry, logger_name: String, level: Level) -> Self {
+    SentryLogger { sentry, logger_name, level }
   }
 
   /// Globally initialises a `SentryLogger` as the log facility. This will then be used by the
@@ -41,7 +40,7 @@ impl SentryLogger {
   /// * `sentry` - Sentry client used to deliver log messages.
   /// * `logger_name` - String used as logger name in messages.
   /// * `level` - Minimum level to log messages to Sentry at.
-  pub fn init(sentry: Sentry, logger_name: &str, level: Level) -> Result<(), SetLoggerError> {
+  pub fn init(sentry: Sentry, logger_name: String, level: Level) -> Result<(), SetLoggerError> {
       log::set_max_level(level.to_level_filter());
       log::set_boxed_logger(Box::new(SentryLogger::new(sentry, logger_name, level)))
   }
@@ -59,8 +58,7 @@ impl Log for SentryLogger {
         Level::Error => self.sentry.error(&self.logger_name, &format!("{}", record.args()), None, None),
         Level::Warn => self.sentry.warning(&self.logger_name, &format!("{}", record.args()), None, None),
         Level::Info => self.sentry.info(&self.logger_name, &format!("{}", record.args()), None, None),
-        Level::Debug => self.sentry.debug(&self.logger_name, &format!("{}", record.args()), None, None),
-        _ => (), // client doesn't support logging at Trace level
+        Level::Debug | Level::Trace => self.sentry.debug(&self.logger_name, &format!("{}", record.args()), None, None),
       }
     }
   }
