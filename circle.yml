@@ -2,7 +2,7 @@
 version: 2
 executorType: docker
 containerInfo:
-  - image: jimmycuadra/rust:latest
+  - image: rust:latest
 stages:
   build:
     workDir: /source
@@ -29,3 +29,6 @@ stages:
       - type: shell
         shell: /bin/bash
         command: cargo run --example panic-handler-demo
+      - type: shell
+        shell: /bin/bash
+        command: cargo run --example log-macro-demo

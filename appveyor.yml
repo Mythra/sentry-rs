@@ -43,6 +43,7 @@ test_script:
   - cargo run --example cross-threads
   - cargo run --example logger-demo
   - cargo run --example panic-handler-demo
+  - cargo run --example log-macro-demo
 
 ## Notifications ##
 notifications:
