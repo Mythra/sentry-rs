@@ -21,6 +21,7 @@ pub mod models;
 pub mod reactor;
 pub mod request;
 pub mod workers;
+pub mod logging;
 
 use models::*;
 use request::DispatchRequest;
